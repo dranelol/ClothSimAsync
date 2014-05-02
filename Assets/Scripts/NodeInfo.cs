@@ -3,6 +3,21 @@ using System.Collections;
 
 public class NodeInfo
 {
+    private int vertex;
+
+    public int Vertex
+    {
+        get
+        {
+            return vertex;
+        }
+
+        set
+        {
+            vertex = value;
+        }
+    }
+
     private Vector2 gridPosition;
     
     public Vector2 GridPosition

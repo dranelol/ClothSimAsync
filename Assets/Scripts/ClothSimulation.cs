@@ -24,6 +24,8 @@ public class ClothSimulation : MonoBehaviour
     public int clothWidth;
     public int clothHeight;
 
+    public int nodeCount;
+
     public float nodeMass;
 
     public float manhattanSpringConstant;
@@ -67,6 +69,8 @@ public class ClothSimulation : MonoBehaviour
     public GameObject anchor4;
     public GameObject anchorPrefab;
 
+    private Dictionary<int, NodeInfo> vertexNodeDict;
+
     public UnityThreadManager threadManager;
 
     private Dictionary<SpringInfo, LineDraw> springLineRenderers;
@@ -80,6 +84,10 @@ public class ClothSimulation : MonoBehaviour
 
     bool integrateMutex = true;
 
+    bool renderMutex = true;
+
+    Mesh clothMesh;
+
     private void Awake()
     {
         threadManager = GetComponent<UnityThreadManager>();
@@ -88,6 +96,10 @@ public class ClothSimulation : MonoBehaviour
         nodes = new List<NodeInfo>();
         springs = new List<SpringInfo>();
         triangles = new List<TriangleInfo>();
+
+        nodeCount = clothWidth * clothHeight;
+
+        vertexNodeDict = new Dictionary<int, NodeInfo>();
 
         nodesParent = new GameObject("Nodes");
         springsParent = new GameObject("Springs");
@@ -100,13 +112,54 @@ public class ClothSimulation : MonoBehaviour
         springsParent.transform.parent = transform;
         trianglesParent.transform.parent = transform;
 
-        initNodes();
+        clothMesh = new Mesh();
+
+        clothMesh.vertices = initNodes().ToArray();
+
         initSprings();
-        initTriangles();
+        
+        Vector2[] uvs = new Vector2[clothMesh.vertices.Length];
+
+        for (int i = 0; i < uvs.Length; i++)
+        {
+            uvs[i] = new Vector2(clothMesh.vertices[i].x, clothMesh.vertices[i].y);
+        }
+
+        clothMesh.uv = uvs;
+
+        clothMesh.triangles = initTriangles().ToArray();
+
+        clothMesh.RecalculateNormals();
+
+        gameObject.AddComponent<MeshRenderer>().renderer.material.shader = Shader.Find("Diffuse");
+        gameObject.AddComponent<MeshFilter>().mesh = clothMesh;
+
+        clothMesh = GetComponent<MeshFilter>().mesh;
+
+        clothMesh.RecalculateNormals();
+        /*
+
+        GameObject plane = new GameObject("meshPlane");
+
+        MeshFilter meshFilter = (MeshFilter)plane.AddComponent(typeof(MeshFilter));
+
+        meshFilter.mesh = clothMesh;
+
+        MeshRenderer renderer = plane.AddComponent(typeof(MeshRenderer)) as MeshRenderer;
+        renderer.material.shader = Shader.Find("Diffuse");
+        Texture2D tex = new Texture2D(1, 1);
+        tex.SetPixel(0, 0, Color.green);
+        tex.Apply();
+        renderer.material.mainTexture = tex;
+        renderer.material.color = Color.green;
+         */
+        
 
         Debug.Log("Node Count: " + nodes.Count.ToString());
         Debug.Log("Spring Count: " + springs.Count.ToString());
         Debug.Log("Triangle Count: " + triangles.Count.ToString());
+
+        
 
 
     }
@@ -118,15 +171,18 @@ public class ClothSimulation : MonoBehaviour
 
     private void FixedUpdate()
     {
-        if (integrateMutex == true)
-        {
+        //if (integrateMutex == true)
+        //{
             nodeMutex = false;
             springMutex = false;
             triMutex = false;
             integrateMutex = false;
+            renderMutex = false;
 
-            Loom.RunAsync(() =>
-            {
+           
+
+            //Loom.RunAsync(() =>
+            //{
                 foreach (NodeInfo node in nodes)
                 {
                     computeNodeForces(node);
@@ -134,12 +190,12 @@ public class ClothSimulation : MonoBehaviour
 
                 }
 
-                nodeMutex = true;
-            });
+                //nodeMutex = true;
+            //});
 
 
-            Loom.RunAsync(() =>
-            {
+            //Loom.RunAsync(() =>
+            //{
                 foreach (SpringInfo spring in springs)
                 {
                     NodeInfo node1Info = spring.Node1;
@@ -157,11 +213,11 @@ public class ClothSimulation : MonoBehaviour
 
                 }
 
-                springMutex = true;
-            });
+                //springMutex = true;
+            //});
 
-            Loom.RunAsync(() =>
-            {
+            //Loom.RunAsync(() =>
+            //{
                 foreach (TriangleInfo triangle in triangles)
                 {
 
@@ -169,39 +225,71 @@ public class ClothSimulation : MonoBehaviour
 
                 }
 
-                triMutex = true;
-            });
-            Loom.QueueOnMainThread(() =>
-            {
-                while (nodeMutex == false
-                        && springMutex == false
-                        && triMutex == false)
-                {
-                }
+                //triMutex = true;
+            //});
 
+            //Loom.QueueOnMainThread(() =>
+            //{
+                //while (nodeMutex == false
+              //          && springMutex == false
+              //          && triMutex == false
+             //           && renderMutex == false)
+             //   {
+             //   }
+                Vector3[] editVertices = new Vector3[nodeCount];
+                
                 foreach (NodeInfo node in nodes)
                 {
-
                     IntegrateMotion(node);
+                    editVertices[node.Vertex] = node.WorldPosition;
                 }
 
+                clothMesh.vertices = editVertices;
+                clothMesh.RecalculateNormals();
 
-                integrateMutex = true;
-            });
+                
+                //integrateMutex = true;
+           // });
+
+                //Loom.QueueOnMainThread(() =>
+                //{
+                //Mesh editMesh = GetComponent<MeshFilter>().mesh;
+                // = clothMesh.vertices;
+                /*
+                for (int i = 0; i < nodeCount; i++)
+                {
+                    editVertices[i] = vertexNodeDict[i].WorldPosition;
+                    //editVectices[i] += new Vector3(0, Random.Range(-0.3f, 0.3f), 0);
+                }
+                clothMesh.vertices = editVertices;
+                clothMesh.RecalculateNormals();
+                 */
+            //editMesh.vertices = editVectices;
+            //editMesh.RecalculateNormals();
+
+            //renderMutex = true;
+
+            //});
+
             
 
 
+       // }
 
-        }
+        
     }
 
-    private void initNodes()
+    private List<Vector3> initNodes()
     {
+        List<Vector3> retVector = new List<Vector3>();
+        int nodeCount = 0;
         for (int i = 0; i < clothWidth; i++)
         {
             for (int j = 0; j < clothHeight; j++)
             {
                 Vector3 newPosition = new Vector3(j, i, 0);
+
+                retVector.Add(newPosition);
 
                 //GameObject newNode = (GameObject)Instantiate(nodePrefab, newPosition, transform.rotation);
                 NodeInfo newNodeInfo = new NodeInfo();
@@ -210,11 +298,15 @@ public class ClothSimulation : MonoBehaviour
                 newNodeInfo.WorldPosition = new Vector3(j, i, 0);
                 newNodeInfo.Mass = nodeMass;
                 newNodeInfo.Velocity = Vector3.zero;
+                newNodeInfo.Vertex = nodeCount;
 
                 //newNode.transform.parent = nodesParent.transform;
                 //newNode.name = "Node " + newNodeInfo.GridPosition;
 
                 nodes.Add(newNodeInfo);
+
+                vertexNodeDict[nodeCount] = newNodeInfo;
+                nodeCount = nodeCount + 1;
                 
                 if (newNodeInfo.GridPosition == new Vector2(0, 0))
                 {
@@ -256,6 +348,8 @@ public class ClothSimulation : MonoBehaviour
                 }
             }
         }
+
+        return retVector;
     }
 
     private void initSprings()
@@ -300,8 +394,10 @@ public class ClothSimulation : MonoBehaviour
         }
     }
 
-    private void initTriangles()
+    private List<int> initTriangles()
     {
+        List<int> triangleVerts = new List<int>();
+
         for (int i = 0; i < nodes.Count; i++)
         {
             if ((i < (clothWidth * clothHeight) - clothHeight) && ((i % clothWidth) != (clothWidth - 1)))
@@ -309,16 +405,29 @@ public class ClothSimulation : MonoBehaviour
 
                 //NW, NE, SW
                 makeTriangle(nodes[i], nodes[i + 1], nodes[i + clothWidth]);
+
+                triangleVerts.Add(i);
+                triangleVerts.Add(i+1);
+                triangleVerts.Add(i + clothWidth);
+
                 //NW, NE, SE
                 makeTriangle(nodes[i], nodes[i + 1], nodes[i + clothWidth + 1]);
+
                 //NE, SW, SE
                 makeTriangle(nodes[i + 1], nodes[i + clothWidth], nodes[i + clothWidth + 1]);
+
+                triangleVerts.Add(i+1);
+                triangleVerts.Add(i + clothWidth);
+                triangleVerts.Add(i + clothWidth + 1);
+
                 //NW, SW, SE
                 makeTriangle(nodes[i], nodes[i + clothWidth], nodes[i + clothWidth + 1]);
 
             }
 
         }
+
+        return triangleVerts;
     }
 
     private void makeSpring(NodeInfo node1, NodeInfo node2, SpringType springType)
