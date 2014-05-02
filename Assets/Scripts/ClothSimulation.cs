@@ -74,6 +74,12 @@ public class ClothSimulation : MonoBehaviour
 
     private float timeStepCounter = 0.0f;
 
+    bool nodeMutex = true;
+    bool springMutex = true;
+    bool triMutex = true;
+
+    bool integrateMutex = true;
+
     private void Awake()
     {
         threadManager = GetComponent<UnityThreadManager>();
@@ -112,52 +118,80 @@ public class ClothSimulation : MonoBehaviour
 
     private void FixedUpdate()
     {
-
-        foreach (NodeInfo node in nodes)
+        if (integrateMutex == true)
         {
-            Debug.Log("current threads running: " + threadManager.CurrentThreads);
-            threadManager.Run(() =>
+            nodeMutex = false;
+            springMutex = false;
+            triMutex = false;
+            integrateMutex = false;
+
+            Loom.RunAsync(() =>
             {
-                computeNodeForces(node);
+                foreach (NodeInfo node in nodes)
+                {
+                    computeNodeForces(node);
+
+
+                }
+
+                nodeMutex = true;
+            });
+
+
+            Loom.RunAsync(() =>
+            {
+                foreach (SpringInfo spring in springs)
+                {
+                    NodeInfo node1Info = spring.Node1;
+                    NodeInfo node2Info = spring.Node2;
+                    //Debug.Log(node1Info.gameObject.transform.position);
+                    if (initSpringRenderers)
+                    {
+
+                        springLineRenderers[spring].vertices[0] = node1Info.WorldPosition;
+
+                        springLineRenderers[spring].vertices[1] = node2Info.WorldPosition;
+                    }
+
+                    computeSpringForces(spring);
+
+                }
+
+                springMutex = true;
+            });
+
+            Loom.RunAsync(() =>
+            {
+                foreach (TriangleInfo triangle in triangles)
+                {
+
+                    computeTriangleForces(triangle);
+
+                }
+
+                triMutex = true;
+            });
+            Loom.QueueOnMainThread(() =>
+            {
+                while (nodeMutex == false
+                        && springMutex == false
+                        && triMutex == false)
+                {
+                }
+
+                foreach (NodeInfo node in nodes)
+                {
+
+                    IntegrateMotion(node);
+                }
+
+
+                integrateMutex = true;
             });
             
-        }
 
-        while (threadManager.CurrentThreads != 0)
-        {
-            Debug.Log("busy waiting");
-        }
 
-        foreach (SpringInfo spring in springs)
-        {
-            SpringInfo springInfo = spring;
-            NodeInfo node1Info = springInfo.Node1;
-            NodeInfo node2Info = springInfo.Node2;
-            //Debug.Log(node1Info.gameObject.transform.position);
-            if (initSpringRenderers)
-            {
 
-                springLineRenderers[spring].vertices[0] = node1Info.WorldPosition;
-
-                springLineRenderers[spring].vertices[1] = node2Info.WorldPosition;
-            }
-
-            //UnityThreadManager.Run(() =>
-            //{
-                computeSpringForces(spring);
-            //});
-        }
-
-        foreach (TriangleInfo triangle in triangles)
-        {
-            computeTriangleForces(triangle);
-        }
-
-        
-
-        foreach (NodeInfo node in nodes)
-        {
-            IntegrateMotion(node);
         }
     }
 
@@ -450,8 +484,10 @@ public class ClothSimulation : MonoBehaviour
         {
             Vector3 acceleration = node.Force / node.Mass;
             node.Velocity += acceleration * Time.fixedDeltaTime;
+            //node.Velocity += acceleration * Time.deltaTime;
             //node.Velocity += acceleration * TIME_STEP;
             node.WorldPosition += node.Velocity * Time.fixedDeltaTime;
+            //node.WorldPosition += node.Velocity * Time.deltaTime;
             //node.WorldPosition += node.Velocity * TIME_STEP;
         }
     }

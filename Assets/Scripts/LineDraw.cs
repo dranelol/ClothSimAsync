@@ -44,11 +44,14 @@ public class LineDraw : MonoBehaviour {
 	// Update is called once per frame
 	void Update () 
     {
-        for (int i = 0; i < vertices.Count; i++)
-        {
-            
-            lineRenderer.SetPosition(i, vertices[i]);
-        }
+        //Loom.RunAsync(() =>
+        //{
+            for (int i = 0; i < vertices.Count; i++)
+            {
+
+                lineRenderer.SetPosition(i, vertices[i]);
+            }
+        //});
         
         /*
         float lerpTime = Mathf.PingPong(Time.time, timeToLerp) / timeToLerp;
