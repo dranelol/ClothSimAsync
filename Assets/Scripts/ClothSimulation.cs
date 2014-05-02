@@ -19,7 +19,7 @@ public class ClothSimulation : MonoBehaviour
     public float dragCoefficient = 0.5f;
 
     public bool isAnchored = true;
-    
+    private int cores;
 
     public int clothWidth;
     public int clothHeight;
@@ -67,6 +67,8 @@ public class ClothSimulation : MonoBehaviour
     public GameObject anchor4;
     public GameObject anchorPrefab;
 
+    public UnityThreadManager threadManager;
+
     private Dictionary<SpringInfo, LineDraw> springLineRenderers;
     private Dictionary<TriangleInfo, LineDraw> triangleLineRenderers;
 
@@ -74,7 +76,9 @@ public class ClothSimulation : MonoBehaviour
 
     private void Awake()
     {
-
+        threadManager = GetComponent<UnityThreadManager>();
+        cores = SystemInfo.processorCount;
+        Debug.Log("cores: " + cores);
         nodes = new List<NodeInfo>();
         springs = new List<SpringInfo>();
         triangles = new List<TriangleInfo>();
@@ -108,9 +112,20 @@ public class ClothSimulation : MonoBehaviour
 
     private void FixedUpdate()
     {
+
         foreach (NodeInfo node in nodes)
         {
-            computeNodeForces(node);
+            Debug.Log("current threads running: " + threadManager.CurrentThreads);
+            threadManager.Run(() =>
+            {
+                computeNodeForces(node);
+            });
+            
+        }
+
+        while (threadManager.CurrentThreads != 0)
+        {
+            Debug.Log("busy waiting");
         }
 
         foreach (SpringInfo spring in springs)
@@ -127,13 +142,18 @@ public class ClothSimulation : MonoBehaviour
                 springLineRenderers[spring].vertices[1] = node2Info.WorldPosition;
             }
 
-            computeSpringForces(spring);
+            //UnityThreadManager.Run(() =>
+            //{
+                computeSpringForces(spring);
+            //});
         }
 
         foreach (TriangleInfo triangle in triangles)
         {
             computeTriangleForces(triangle);
         }
+
+        
 
         foreach (NodeInfo node in nodes)
         {
