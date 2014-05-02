@@ -13,7 +13,7 @@ public enum SpringType
 public class ClothSimulation : MonoBehaviour
 {
     public Vector3 GRAVITY_VECTOR = new Vector3(0f, -2f, 0f);
-    public Vector3 air_velocty = new Vector3(1f, 0, 0); // might not use this
+    public Vector3 air_velocity = new Vector3(1f, 0, 0); // might not use this
     public const float TIME_STEP = 0.03f; // may not need this
     public float density = 1f;
     public float dragCoefficient = 0.5f;
@@ -68,6 +68,10 @@ public class ClothSimulation : MonoBehaviour
     public GameObject anchor3;
     public GameObject anchor4;
     public GameObject anchorPrefab;
+
+    public GUIText airVelocityX;
+    public GUIText airVelocityY;
+    public GUIText airVelocityZ;
 
     private Dictionary<int, NodeInfo> vertexNodeDict;
 
@@ -129,7 +133,6 @@ public class ClothSimulation : MonoBehaviour
 
         clothMesh.triangles = initTriangles().ToArray();
 
-        clothMesh.RecalculateNormals();
 
         gameObject.AddComponent<MeshRenderer>().renderer.material.shader = Shader.Find("Diffuse");
         gameObject.AddComponent<MeshFilter>().mesh = clothMesh;
@@ -169,20 +172,40 @@ public class ClothSimulation : MonoBehaviour
 
     }
 
+    private void OnGUI()
+    {
+        air_velocity.x = GUI.HorizontalSlider(new Rect(Screen.width / 2, Screen.height - 150, 200, 30), air_velocity.x, -50.0f, 50.0f);
+        air_velocity.y = GUI.HorizontalSlider(new Rect(Screen.width / 2, Screen.height - 100, 200, 30), air_velocity.y, -50.0f, 50.0f);
+        air_velocity.z = GUI.HorizontalSlider(new Rect(Screen.width / 2, Screen.height - 50, 200, 30), air_velocity.z, -50.0f, 50.0f);
+
+        Vector3 newAirVX = new Vector3(0.5f, ((float)Screen.height * 0.2f) / (float)Screen.height);
+        Vector3 newAirVY = new Vector3(0.5f, ((float)Screen.height * 0.13f) / (float)Screen.height);
+        Vector3 newAirVZ = new Vector3(0.5f, ((float)Screen.height * 0.06f) / (float)Screen.height);
+
+        airVelocityX.transform.position = newAirVX;
+        airVelocityY.transform.position = newAirVY;
+        airVelocityZ.transform.position = newAirVZ;
+
+        airVelocityX.text = "Air velocity X: " + air_velocity.x.ToString();
+        airVelocityY.text = "Air velocity Y: " + air_velocity.y.ToString();
+        airVelocityZ.text = "Air velocity Z: " + air_velocity.z.ToString();
+    }
+
     private void FixedUpdate()
     {
-        //if (integrateMutex == true)
-        //{
+        if (integrateMutex == true)
+        {
             nodeMutex = false;
             springMutex = false;
             triMutex = false;
             integrateMutex = false;
             renderMutex = false;
 
-           
 
-            //Loom.RunAsync(() =>
-            //{
+            Debug.Log(nodeMutex.ToString() + springMutex.ToString() + triMutex.ToString());
+                
+            Loom.RunAsync(() =>
+            {
                 foreach (NodeInfo node in nodes)
                 {
                     computeNodeForces(node);
@@ -190,17 +213,16 @@ public class ClothSimulation : MonoBehaviour
 
                 }
 
-                //nodeMutex = true;
-            //});
+                nodeMutex = true;
+            });
 
 
-            //Loom.RunAsync(() =>
-            //{
+            Loom.RunAsync(() =>
+            {
                 foreach (SpringInfo spring in springs)
                 {
                     NodeInfo node1Info = spring.Node1;
                     NodeInfo node2Info = spring.Node2;
-                    //Debug.Log(node1Info.gameObject.transform.position);
                     if (initSpringRenderers)
                     {
 
@@ -213,11 +235,11 @@ public class ClothSimulation : MonoBehaviour
 
                 }
 
-                //springMutex = true;
-            //});
+                springMutex = true;
+            });
 
-            //Loom.RunAsync(() =>
-            //{
+            Loom.RunAsync(() =>
+            {
                 foreach (TriangleInfo triangle in triangles)
                 {
 
@@ -225,19 +247,23 @@ public class ClothSimulation : MonoBehaviour
 
                 }
 
-                //triMutex = true;
-            //});
+                triMutex = true;
+            });
 
-            //Loom.QueueOnMainThread(() =>
-            //{
-                //while (nodeMutex == false
-              //          && springMutex == false
-              //          && triMutex == false
-             //           && renderMutex == false)
-             //   {
-             //   }
+            Debug.Log(nodeMutex.ToString() + springMutex.ToString() + triMutex.ToString());
+
+            Loom.QueueOnMainThread(() =>
+            {
+                Debug.Log(nodeMutex.ToString() + springMutex.ToString() + triMutex.ToString());
+                while (nodeMutex == false
+                        && springMutex == false
+                        && triMutex == false)
+                {
+                    Debug.Log("busy waiting");
+                }
+
                 Vector3[] editVertices = new Vector3[nodeCount];
-                
+
                 foreach (NodeInfo node in nodes)
                 {
                     IntegrateMotion(node);
@@ -246,10 +272,10 @@ public class ClothSimulation : MonoBehaviour
 
                 clothMesh.vertices = editVertices;
                 clothMesh.RecalculateNormals();
+                clothMesh.RecalculateBounds();
 
-                
-                //integrateMutex = true;
-           // });
+                integrateMutex = true;
+            }, 0.0f);
 
                 //Loom.QueueOnMainThread(() =>
                 //{
@@ -274,7 +300,7 @@ public class ClothSimulation : MonoBehaviour
             
 
 
-       // }
+        }
 
         
     }
@@ -568,7 +594,7 @@ public class ClothSimulation : MonoBehaviour
 
         // apply aerodynamic forces
         Vector3 triangle_velocity = (node1Info.Velocity + node2Info.Velocity + node3Info.Velocity) / 3f;
-        triangle_velocity -= air_velocty;
+        triangle_velocity -= air_velocity;
 
         // calulate triangle normal using positions (uses cross product)
         // (r2 - r1) X (r3 - r1)
