@@ -202,7 +202,7 @@ public class ClothSimulation : MonoBehaviour
             renderMutex = false;
 
 
-            Debug.Log(nodeMutex.ToString() + springMutex.ToString() + triMutex.ToString());
+            //Debug.Log(nodeMutex.ToString() + springMutex.ToString() + triMutex.ToString());
                 
             Loom.RunAsync(() =>
             {
@@ -261,7 +261,7 @@ public class ClothSimulation : MonoBehaviour
                 {
                     Debug.Log("busy waiting");
                 }
-
+                /*
                 Vector3[] editVertices = new Vector3[nodeCount];
 
                 foreach (NodeInfo node in nodes)
@@ -273,6 +273,7 @@ public class ClothSimulation : MonoBehaviour
                 clothMesh.vertices = editVertices;
                 clothMesh.RecalculateNormals();
                 clothMesh.RecalculateBounds();
+                */
 
                 integrateMutex = true;
             }, 0.0f);
